@@ -1,135 +1,105 @@
-# CATI QA Dashboard
+# CATI QA Test Platform
 
-A React frontend for the CATI AI QA testing platform. It monitors and controls
-test runs through the FastAPI QA backend - it never executes Playwright,
-Selenium, pytest, or any test framework itself.
+An independent automated QA platform for testing the deployed CATI AI system.
 
+## Purpose
+
+This repository is intentionally separate from the CATI application repositories.
+
+Architecture:
+
+QA Dashboard → QA Backend → Test Runner → CATI
+
+The QA platform owns:
+- Test execution
+- Test results
+- Failure evidence
+- Bug/severity records
+- Reports
+
+CATI remains the System Under Test (SUT).
+
+## Planned Test Types
+
+- API
+- UI
+- End-to-End (E2E)
+- WebSocket
+- AI/Voice scenarios
+
+## Repository Structure
+
+```text
+cati-test-platform/
+├── frontend/             # QA dashboard
+├── backend/              # QA backend/API
+├── test-engine/          # Automated test suites
+│   ├── api/
+│   ├── ui/
+│   ├── e2e/
+│   ├── websocket/
+│   └── ai/
+├── reports/              # Generated reports
+├── artifacts/            # Screenshots, traces, videos, etc.
+├── config/               # Environment/test configuration
+├── tests/                # Base/smoke tests
+├── .env.example
+├── .gitignore
+├── package.json
+└── playwright.config.js
 ```
-React QA Dashboard
-      |
-    Axios
-      |
-FastAPI QA Backend
-      |
-Test Run Controller
-      |
-Test Orchestrator
-      |
-Playwright / API / WebSocket / AI tests
-      |
-    CATI
+
+## Git Workflow
+
+- `main` = stable/demo-ready branch
+- `develop` = integration branch
+- `feature/*` = individual team branches
+
+Never push directly to `main`.
+Use Pull Requests into `develop`.
+After integration and validation, promote `develop` to `main`.
+
+## Team Branches
+
+```text
+feature/dashboard
+feature/qa-backend
+feature/api-tests
+feature/ui-e2e
+feature/ai-websocket
+feature/reporting
 ```
 
-The React app only starts test runs through the backend (`POST /api/test-runs`)
-and displays whatever the backend reports back.
+## Environment
 
-## Project setup
+Copy `.env.example` to `.env` and provide authorized test environment credentials.
+
+Never commit `.env`, passwords, tokens, or API keys.
+
+## Quick Start
 
 ```bash
 npm install
+npx playwright install
+npx playwright test
 ```
 
-## npm commands
-
-| Command           | Description                          |
-|--------------------|---------------------------------------|
-| `npm run dev`      | Start the Vite dev server (port 5173) |
-| `npm run build`    | Production build to `dist/`           |
-| `npm run preview`  | Preview the production build locally  |
-| `npm run lint`     | Run ESLint                            |
-
-## Environment variables
-
-Copy `.env.example` to `.env` and point it at your FastAPI backend:
+View the report:
 
 ```bash
-cp .env.example .env
+npx playwright show-report
 ```
 
-```
-VITE_API_BASE_URL=http://localhost:8000
-```
+## Safety
 
-The base URL is never hardcoded anywhere else in the project - every request
-goes through the shared Axios instance in `src/services/api.js`.
+Only run authorized tests against CATI environments. Destructive operations, real calls, paid operations, and production data changes should use approved test resources or a dedicated QA/staging environment.
 
-## Routes
+### API Testing Safety Classifications
+All tests within the `test-engine/api` module are categorized by their side effects to ensure safe execution:
 
-| Route             | Page             |
-|--------------------|------------------|
-| `/`                 | Redirects to `/dashboard` |
-| `/dashboard`         | Summary cards, suite breakdown, recent failures, Run Tests |
-| `/runs`              | Table of all test runs |
-| `/runs/:id`          | Detail view for a single run |
-| `/failures`          | Searchable/filterable failure list |
-| `/failures/:id`      | Detail view for a single failure, with evidence |
-| `/reports`           | Latest report, charts (distribution, pass-rate trend, suite performance) |
-
-## API endpoints (expected from the FastAPI backend)
-
-| Method | Endpoint               | Used by                  |
-|--------|-------------------------|---------------------------|
-| POST   | `/api/test-runs`        | Run Tests button          |
-| GET    | `/api/dashboard`        | Dashboard page            |
-| GET    | `/api/test-runs`        | Test Runs page            |
-| GET    | `/api/test-runs/:id`    | Run Details page          |
-| GET    | `/api/failures`         | Failures page (supports `search`, `suite`, `severity`, `status` query params) |
-| GET    | `/api/failures/:id`     | Failure Details page      |
-| GET    | `/api/reports`          | Reports page               |
-
-All of these are wrapped by functions in `src/services/api.js`:
-`startTestRun`, `getDashboard`, `getTestRuns`, `getTestRun`, `getFailures`,
-`getFailure`, `getReports`.
-
-## Mock data
-
-While the backend isn't available, every function in `src/services/api.js`
-returns data from `src/data/mockData.js` instead of calling Axios. This is
-controlled by a single flag:
-
-```js
-// src/services/api.js
-const USE_MOCK_DATA = true
-```
-
-Mock data is centralized in one file - no component hardcodes numbers or
-sample records directly.
-
-## Connecting the real FastAPI backend
-
-1. Set `VITE_API_BASE_URL` in `.env` to your backend's URL.
-2. In `src/services/api.js`, set `USE_MOCK_DATA = false`.
-3. Make sure the backend implements the endpoints listed above and returns
-   data shaped like the objects in `src/data/mockData.js` (or update the
-   mapping inside `api.js` to translate the backend's actual response shape -
-   keep that mapping in the service layer, not in the UI).
-4. No other file needs to change - pages and components only ever call the
-   functions exported from `api.js`.
-
-## Project structure
-
-```
-src/
-├── components/       Reusable UI: Layout, Sidebar, Header, badges, tables,
-│                      loading/error/empty states, RunTestsButton, StatCard
-├── pages/             Dashboard, Runs, RunDetails, Failures, FailureDetails,
-│                      Reports
-├── services/
-│   └── api.js         Single Axios instance + all backend calls + mock fallback
-├── data/
-│   └── mockData.js     Centralized mock data
-├── App.jsx             Route definitions
-├── main.jsx             App entry point
-└── index.css            Tailwind entry point
-```
-
-## Notes on the 4-day MVP scope
-
-- A single **Run Tests** button starts all suites. The payload shape
-  (`{ suites: 'all' }`) is already structured so a future suite-selection
-  UI (checkboxes for API / UI / E2E / WebSocket / AI-Voice) can pass a
-  filtered array without changing anything else.
-- Loading, error, and empty states are implemented on every API-driven page.
-  Edge cases are never left blank, and raw Axios errors are never shown to the user.
-- The UI is responsive: a collapsible sidebar on mobile/tablet, and tables
-  scroll horizontally instead of breaking the layout.
+- **READ-ONLY**: Operations that fetch data without modifying state (e.g., `GET /api/agents`). Always safe.
+- **TEST-DATA MUTATION**: Operations that modify data scoped strictly to the test user or mock data (e.g., `POST /api/agents`). Safe, but leaves isolated test data behind.
+- **EXTERNAL SIDE EFFECT**: Operations that trigger third-party services (e.g., Twilio calls, Stripe charges). These are typically protected by environment flags (`ALLOW_REAL_CALLS`, `ALLOW_LIVE_PAYMENTS`) and are fail-closed.
+- **STAGING/SANDBOX ONLY**: Operations safe to run only in isolated, non-production environments.
+- **INTENTIONALLY SKIPPED**: Tests written for documentation/coverage but disabled in standard CI runs due to cost, destructiveness, or lack of mock capabilities.
+- **MOCK REQUIRED**: Tests that rely on specific mocking behavior in the backend or an interception layer to pass safely.
